@@ -5,168 +5,133 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Color Guessing Game</title>
   <style>
-    :root{
-      --bg:#0f172a;
-      --card:#0b1220;
-      --accent:#60a5fa;
-      --muted:#94a3b8;
-    }
-    *{box-sizing:border-box}
-    body{font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial; margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg,#07102a 0%, #071020 100%); color:#e6eef8}
-    .container{width:100%; max-width:760px; padding:28px; border-radius:16px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); box-shadow:0 8px 30px rgba(0,0,0,0.6)}
-    h1{margin:0 0 6px; font-size:24px}
-    p.lead{margin:0 0 18px; color:var(--muted)}
-
-    .board{display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:12px; margin-bottom:18px}
-    .color-btn{height:96px; border-radius:10px; border:3px solid rgba(0,0,0,0.15); display:flex; align-items:center; justify-content:center; font-weight:700; text-transform:capitalize; cursor:pointer; transition:transform .12s ease, box-shadow .12s ease; color:rgba(0,0,0,0.6);}
-    .color-btn:active{transform:scale(.98)}
-    .color-btn.guessed{opacity:.45; cursor:default; transform:scale(.98)}
-
-    .info{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:8px}
-    .pill{background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:999px; color:var(--muted); font-weight:600}
-    .controls{display:flex; gap:8px; margin-top:12px}
-    button.control{background:transparent; border:1px solid rgba(255,255,255,0.06); padding:8px 12px; border-radius:10px; color:var(--accent); cursor:pointer}
-    .status{margin-top:10px; padding:12px; border-radius:10px; background:linear-gradient(180deg, rgba(96,165,250,0.06), rgba(255,255,255,0.01)); color:var(--accent); font-weight:700}
-    .status.wrong{color:#ffb4b4; background:linear-gradient(180deg, rgba(255,80,80,0.04), rgba(255,255,255,0.01));}
-    .hint{color:var(--muted); font-size:14px}
-
-    footer{margin-top:18px; color:var(--muted); font-size:13px}
-    footer a{color:var(--accent); text-decoration:none;}
+    :root{--bg:#232323;--accent:#2ecc71}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:0;background:var(--bg);color:#fff;display:flex;flex-direction:column;min-height:100vh}
+    header{background:linear-gradient(90deg,#1f1f1f, #2b2b2b);padding:18px 24px;display:flex;align-items:center;justify-content:space-between}
+    h1{margin:0;font-size:20px}
+    .controls{display:flex;gap:8px;align-items:center}
+    button{background:#fff;color:#111;border:0;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:600}
+    button.secondary{background:transparent;color:#ddd;border:1px solid rgba(255,255,255,0.08)}
+    main{flex:1;padding:28px;max-width:960px;margin:0 auto;width:100%}
+    .topbar{display:flex;align-items:center;gap:18px;margin-bottom:18px}
+    .target{font-size:20px;background:linear-gradient(90deg,#3b3b3b,#2b2b2b);padding:10px 14px;border-radius:8px}
+    .message{min-width:160px}
+    .board{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:18px}
+    .square{padding-top:75%;position:relative;border-radius:8px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,0.4);transition:transform .14s ease,filter .14s}
+    .square:active{transform:scale(.98)}
+    .square.hidden{opacity:0;pointer-events:none;transform:scale(.95)}
+    .square > span{position:absolute;inset:0;border-radius:8px;display:block}
+    footer{padding:18px 24px;text-align:center;font-size:13px;color:#bbb}
+    a.link{color:var(--accent);text-decoration:none}
+    .settings{display:flex;gap:8px;align-items:center}
+    @media(min-width:720px){.board{grid-template-columns:repeat(6,1fr)}}
   </style>
 </head>
 <body>
-  <main class="container" role="main">
+  <header>
     <h1>🎨 Color Guessing Game</h1>
-    <p class="lead">Pick the correct color from the tiles. Try to guess in as few attempts as possible.</p>
-
-    <div class="info">
-      <div class="pill">Attempts: <span id="attempts">0</span></div>
-      <div class="pill">Remaining: <span id="remaining">0</span></div>
-      <div class="pill">Available colors: <span id="count">0</span></div>
-    </div>
-
-    <div id="board" class="board" aria-live="polite"></div>
-
     <div class="controls">
-      <button class="control" id="newGame">New Game</button>
-      <button class="control" id="reveal">Reveal Answer</button>
+      <div class="settings">
+        <label style="font-size:13px;color:#bbb;margin-right:6px">Mode</label>
+        <button id="easyBtn" class="secondary">Easy (3)</button>
+        <button id="hardBtn">Hard (6)</button>
+      </div>
+      <button id="resetBtn">New Colors</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="topbar">
+      <div class="target">Guess which square is: <strong id="colorDisplay">rgb(0, 0, 0)</strong></div>
+      <div class="message" id="message">&nbsp;</div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <button id="showAllBtn" class="secondary">Show All</button>
+        <a class="link" href="https://chatgpt.com/share/68cb9f4402708191bc2a544d25b92098" target="_blank" rel="noopener">Open AI Chat History</a>
+      </div>
     </div>
 
-    <div id="status" class="status" aria-live="assertive" style="display:none"></div>
-    <p class="hint">Tip: you can also use your keyboard (first letter) to guess quickly — e.g. press <strong>r</strong> for red.</p>
+    <div class="board" id="board" aria-live="polite">
+      <!-- squares created by JS -->
+    </div>
 
-    <footer>
-      Made with ♥ — refresh or press "New Game" to play again.<br>
-      📎 <a href="https://chatgpt.com/share/68ca588d-ef88-800f-ba0c-9dadb9eb5641" target="_blank">View Chat History</a>
-    </footer>
+    <p style="margin-top:20px;color:#ccc;line-height:1.4">Instructions: Click the square that matches the RGB value. Use <strong>Easy</strong> for 3 choices or <strong>Hard</strong> for 6. Press <em>New Colors</em> to restart. If you're stuck, click <em>Show All</em>. You can also check the <a class="link" href="https://chatgpt.com/share/68cb9f4402708191bc2a544d25b92098" target="_blank" rel="noopener">AI Chat History</a> for reference.</p>
   </main>
 
+  <footer>
+    Built with ❤️ — Save this file as <code>color-game.html</code> and open in any modern browser.
+  </footer>
+
   <script>
-    (function(){
-      const colors = [
-        'red','blue','green','yellow','orange','purple','pink','black','white','brown','cyan','teal'
-      ];
+    // Game logic
+    const board = document.getElementById('board');
+    const colorDisplay = document.getElementById('colorDisplay');
+    const message = document.getElementById('message');
+    const resetBtn = document.getElementById('resetBtn');
+    const easyBtn = document.getElementById('easyBtn');
+    const hardBtn = document.getElementById('hardBtn');
+    const showAllBtn = document.getElementById('showAllBtn');
 
-      const boardEl = document.getElementById('board');
-      const attemptsEl = document.getElementById('attempts');
-      const remainingEl = document.getElementById('remaining');
-      const countEl = document.getElementById('count');
-      const statusEl = document.getElementById('status');
-      const newBtn = document.getElementById('newGame');
-      const revealBtn = document.getElementById('reveal');
+    let numSquares = 6;
+    let colors = [];
+    let pickedColor = '';
 
-      let secret = null;
-      let attempts = 0;
-      let available = [];
+    function randomInt(max){ return Math.floor(Math.random()*max); }
+    function randomColor(){ return `rgb(${randomInt(256)}, ${randomInt(256)}, ${randomInt(256)})`; }
+    function generateColors(n){ return Array.from({length:n}, randomColor); }
 
-      function pickSecret(arr){
-        return arr[Math.floor(Math.random()*arr.length)];
-      }
+    function pick(){ return colors[randomInt(colors.length)]; }
 
-      function startGame(numberOfColors = 9){
-        const shuffled = [...colors].sort(()=>Math.random()-0.5);
-        available = shuffled.slice(0, Math.min(numberOfColors, shuffled.length));
-        secret = pickSecret(available);
-        attempts = 0;
-        renderBoard();
-        updateInfo();
-        hideStatus();
-      }
-
-      function renderBoard(){
-        boardEl.innerHTML = '';
-        available.forEach(col => {
-          const btn = document.createElement('button');
-          btn.className = 'color-btn';
-          btn.style.background = col;
-          btn.setAttribute('data-color', col);
-          btn.setAttribute('aria-label', `Color ${col}`);
-          btn.innerText = col;
-          btn.addEventListener('click', onGuess);
-          boardEl.appendChild(btn);
-        });
-        countEl.textContent = available.length;
-        remainingEl.textContent = available.length;
-      }
-
-      function onGuess(e){
-        const btn = e.currentTarget;
-        if(btn.classList.contains('guessed')) return;
-        const guess = btn.getAttribute('data-color');
-        attempts++;
-        attemptsEl.textContent = attempts;
-
-        if(guess === secret){
-          showStatus(`✅ Correct! The secret color was "${secret}". You guessed in ${attempts} attempt${attempts>1? 's':''}.`, false);
-          celebrate(btn);
-          disableAll();
-        } else {
-          btn.classList.add('guessed');
-          btn.disabled = true;
-          showStatus(`❌ ${guess} is not correct. Keep trying!`, true);
-          remainingEl.textContent = document.querySelectorAll('.color-btn:not(.guessed)').length;
-        }
-      }
-
-      function celebrate(btn){
-        btn.style.boxShadow = '0 10px 30px rgba(0,0,0,0.4)';
-        btn.style.transform = 'scale(1.02)';
-      }
-
-      function disableAll(){
-        document.querySelectorAll('.color-btn').forEach(b=>{ b.disabled = true; b.classList.add('guessed'); });
-        remainingEl.textContent = 0;
-      }
-
-      function showStatus(message, wrong){
-        statusEl.style.display = 'block';
-        statusEl.className = 'status' + (wrong ? ' wrong' : '');
-        statusEl.textContent = message;
-      }
-
-      function hideStatus(){
-        statusEl.style.display = 'none';
-        statusEl.textContent = '';
-      }
-
-      newBtn.addEventListener('click', ()=>startGame(9));
-      revealBtn.addEventListener('click', ()=>{
-        showStatus(`ℹ️ The secret color is "${secret}".`, true);
-        disableAll();
+    function setupBoard(){
+      board.innerHTML = '';
+      colors.forEach((c,i)=>{
+        const div = document.createElement('div');
+        div.className = 'square';
+        div.setAttribute('role','button');
+        div.setAttribute('aria-label',`color choice ${i+1}`);
+        const span = document.createElement('span');
+        span.style.background = c;
+        div.appendChild(span);
+        div.addEventListener('click', ()=> handleClick(div, c));
+        board.appendChild(div);
       });
+    }
 
-      document.addEventListener('keydown', (ev)=>{
-        const key = ev.key.toLowerCase();
-        if(key === 'n') { startGame(9); return; }
-        if(key === 'r' || key === 'g' || key === 'b' || key === 'y' || key === 'o' || key === 'p' || key === 'k' || key === 'w' || key === 'c' || key === 't'){
-          const btn = Array.from(document.querySelectorAll('.color-btn')).find(b=> !b.classList.contains('guessed') && b.getAttribute('data-color').charAt(0)===key);
-          if(btn) btn.click();
-        }
-      });
+    function handleClick(div, c){
+      if(c === pickedColor){
+        message.textContent = 'Correct!';
+        document.querySelectorAll('.square').forEach(s=>{ s.classList.remove('hidden'); s.firstChild.style.background = pickedColor; });
+        headerWin(pickedColor);
+        resetBtn.textContent = 'Play Again?';
+      } else {
+        div.classList.add('hidden');
+        message.textContent = 'Try Again';
+      }
+    }
 
-      startGame(9);
+    function headerWin(color){
+      document.querySelector('header').style.background = color;
+    }
 
-    })();
+    function reset(){
+      colors = generateColors(numSquares);
+      pickedColor = pick();
+      colorDisplay.textContent = pickedColor;
+      message.textContent = '';
+      resetBtn.textContent = 'New Colors';
+      document.querySelector('header').style.background = '';
+      setupBoard();
+    }
+
+    // Controls
+    resetBtn.addEventListener('click', reset);
+    easyBtn.addEventListener('click', ()=>{ numSquares = 3; easyBtn.classList.add('secondary'); hardBtn.classList.remove('secondary'); reset(); });
+    hardBtn.addEventListener('click', ()=>{ numSquares = 6; hardBtn.classList.add('secondary'); easyBtn.classList.remove('secondary'); reset(); });
+    showAllBtn.addEventListener('click', ()=>{ document.querySelectorAll('.square').forEach((s,i)=>{ s.classList.remove('hidden'); s.firstChild.style.background = colors[i] }); message.textContent = 'All revealed'; });
+
+    // Init
+    // default mode: hard
+    hardBtn.classList.add('secondary');
+    reset();
   </script>
 </body>
 </html>
