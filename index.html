@@ -1,1 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Color Guessing Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    #colorBox {
+      width: 200px;
+      height: 200px;
+      margin: 20px auto;
+      border-radius: 15px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .btn-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #3498db;
+      color: white;
+      font-size: 16px;
+      transition: 0.2s;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    #message {
+      font-size: 18px;
+      margin-top: 15px;
+    }
+    #score {
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    #restartBtn {
+      display: none;
+      margin-top: 20px;
+      background: #27ae60;
+    }
+    #restartBtn:hover {
+      background: #1e8449;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎨 Color Guessing Game</h1>
+  <p>Guess which color matches the shown RGB value!</p>
+
+  <div id="colorBox"></div>
+  <p id="rgbDisplay"></p>
+
+  <div class="btn-container" id="buttons"></div>
+
+  <p id="message"></p>
+  <p id="score">Score: 0</p>
+
+  <button id="restartBtn">🔄 Restart Game</button>
+
+  <script>
+    const colorBox = document.getElementById("colorBox");
+    const rgbDisplay = document.getElementById("rgbDisplay");
+    const buttons = document.getElementById("buttons");
+    const message = document.getElementById("message");
+    const scoreDisplay = document.getElementById("score");
+    const restartBtn = document.getElementById("restartBtn");
+
+    let score = 0;
+    const winScore = 5; // win condition
+
+    function randomColor() {
+      const r = Math.floor(Math.random() * 256);
+      const g = Math.floor(Math.random() * 256);
+      const b = Math.floor(Math.random() * 256);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function newRound() {
+      message.textContent = "";
+      buttons.innerHTML = "";
+      restartBtn.style.display = "none";
+
+      // pick correct color
+      const correctColor = randomColor();
+      colorBox.style.background = correctColor;
+      rgbDisplay.textContent = "Find this color: " + correctColor;
+
+      // generate options
+      let options = [correctColor];
+      while (options.length < 3) {
+        let newC = randomColor();
+        if (!options.includes(newC)) options.push(newC);
+      }
+
+      // shuffle
+      options = options.sort(() => Math.random() - 0.5);
+
+      // create buttons
+      options.forEach(color => {
+        const btn = document.createElement("button");
+        btn.textContent = color;
+        btn.onclick = () => checkAnswer(color, correctColor);
+        buttons.appendChild(btn);
+      });
+    }
+
+    function checkAnswer(selected, correct) {
+      if (selected === correct) {
+        message.textContent = "✅ Correct!";
+        score++;
+      } else {
+        message.textContent = "❌ Wrong! Try again.";
+        if (score > 0) score--; // small penalty
+      }
+      scoreDisplay.textContent = "Score: " + score;
+
+      if (score >= winScore) {
+        message.textContent = "🎉 You Win! Final Score: " + score;
+        buttons.innerHTML = "";
+        restartBtn.style.display = "inline-block";
+      } else {
+        setTimeout(newRound, 1000);
+      }
+    }
+
+    function restartGame() {
+      score = 0;
+      scoreDisplay.textContent = "Score: 0";
+      newRound();
+    }
+
+    restartBtn.addEventListener("click", restartGame);
+
+    // start game
+    newRound();
+  </script>
+</body>
+</html>
 
