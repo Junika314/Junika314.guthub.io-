@@ -1,1 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Spot the Odd Tile — Improved</title>
+<style>
+  :root{
+    --bg: #0e4f8b;
+    --phone-bg: #ffffff;
+    --accent: #2fb46b;
+    --danger: #e85a4f;
+    --ui-pad: 14px;
+    --tile-gap: 6px;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+  body{
+    display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(180deg,var(--bg),#054a79);
+    padding:18px;
+    color:#1a1a1a;
+  }
+
+  /* phone frame */
+  .phone {
+    width:100%;
+    max-width:420px;
+    border-radius:28px;
+    background:linear-gradient(180deg,var(--phone-bg),#fbfdff);
+    box-shadow: 0 14px 30px rgba(4,25,50,0.35);
+    padding:12px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    border:6px solid rgba(255,255,255,0.15);
+  }
+
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 6px 6px 10px;
+  }
+  .title{font-weight:600;font-size:16px;color:#0b355a;}
+  .controls{display:flex;gap:8px;align-items:center;}
+  .btn{
+    background:transparent;border:1px solid rgba(10,40,60,0.07);
+    padding:8px 10px;border-radius:10px;font-weight:600;font-size:13px;
+    cursor:pointer;
+  }
+  .small{font-size:13px;padding:6px 8px;border-radius:8px;}
+
+  .status{
+    display:flex;gap:8px;align-items:center;font-weight:600;
+  }
+
+  /* Grid area */
+  .arena{
+    padding:12px;display:flex;flex-direction:column;gap:10px;
+    align-items:center;
+  }
+
+  .grid{
+    width:100%;
+    aspect-ratio:1/1;
+    display:grid;
+    gap:var(--tile-gap);
+    border-radius:12px;
+    background:linear-gradient(180deg, rgba(0,0,0,0.03), rgba(255,255,255,0.02));
+    padding:8px;
+    box-sizing:border-box;
+  }
+
+  /* Tiles as accessible buttons */
+  .tile {
+    border-radius:6px;
+    border: 2px solid rgba(255,255,255,0.06);
+    outline: none;
+    padding:0;margin:0;
+    aspect-ratio:1/1;
+    width:100%;
+    display:block;
+    cursor:pointer;
+    transition: transform .12s ease, box-shadow .12s ease, opacity .12s;
+    position:relative;
+  }
+  .tile:active{transform:scale(.98)}
+  .tile.correct {
+    animation: pop .4s cubic-bezier(.2,.9,.3,1);
+    box-shadow: 0 8px 22px rgba(47,180,107,0.22);
+    transform: scale(1.04);
+  }
+  .tile.wrong {
+    animation: shake .36s;
+    opacity: .94;
+  }
+
+  @keyframes pop { 0%{transform:scale(.9)} 60%{transform:scale(1.06)} 100%{transform:scale(1)} }
+  @keyframes shake {
+    10%{transform:translateX(-6px)}
+    30%{transform:translateX(6px)}
+    50%{transform:translateX(-4px)}
+    70%{transform:translateX(4px)}
+    100%{transform:translateX(0)}
+  }
+
+  /* pattern overlay for color-blind mode */
+  .tile .pattern {
+    position:absolute;inset:0;border-radius:6px;pointer-events:none;
+    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.16) 0 4px, rgba(0,0,0,0) 4px 8px);
+    mix-blend-mode: overlay;
+    opacity:0;
+    transition:opacity .18s;
+  }
+  .tile.pattern-on .pattern { opacity:1; }
+
+  /* footer info */
+  .hud{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;
+    border-radius:10px;
+  }
+  .lives{display:flex;gap:6px;align-items:center}
+  .heart{width:18px;height:18px;border-radius:50%;background:#ff6b6b;box-shadow:inset 0 -4px 0 rgba(0,0,0,0.08)}
+  .heart.empty{background:transparent;border:2px dashed #eee;opacity:.6}
+  .score{font-weight:700}
+
+  /* timer bar */
+  .timer-wrap{height:10px;background:rgba(0,0,0,0.05);border-radius:999px;overflow:hidden}
+  .timer-bar{height:100%;width:100%;background:linear-gradient(90deg,var(--accent),#2db38b);transform-origin:left;transition:width .15s linear}
+
+  /* overlay and instructions */
+  .overlay {
+    position:fixed;left:0;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(180deg, rgba(0,0,0,0.24), rgba(0,0,0,0.44));
+    z-index:60;
+  }
+  .menu {
+    width:92%;max-width:420px;border-radius:14px;background:white;padding:18px;
+    box-shadow:0 12px 40px rgba(2,10,20,0.35);
+  }
+  .menu h2{margin:0 0 8px;font-size:18px}
+  .menu p{margin:0 0 12px;color:#444}
+  .menu .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+  /* small helpers */
+  .muted{font-weight:500;color:#5a6b75}
+  .flex{display:flex;gap:8px;align-items:center}
+  .center{text-align:center}
+
+  /* responsive smaller phones */
+  @media (max-width:360px){
+    .phone{max-width:96%}
+    .title{font-size:15px}
+  }
+</style>
+</head>
+<body>
+  <div class="phone" role="application" aria-label="Odd tile color game">
+    <div class="topbar">
+      <div class="title">Spot the Odd Tile</div>
+      <div class="controls">
+        <button id="cbToggle" class="btn small" title="Toggle color blind mode">CB Mode</button>
+        <button id="startBtn" class="btn small">Play</button>
+      </div>
+    </div>
+
+    <div class="arena" aria-live="polite">
+      <div class="status">
+        <div class="muted">Level <span id="level">1</span></div>
+        <div class="muted">Score <span id="score">0</span></div>
+        <div class="muted">Streak <span id="streak">0</span></div>
+      </div>
+
+      <div class="grid" id="grid" tabindex="0" aria-label="Game grid"></div>
+
+      <div style="width:100%">
+        <div class="timer-wrap" aria-hidden="true">
+          <div id="timerBar" class="timer-bar" style="width:100%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;align-items:center">
+          <div class="lives" id="lives"></div>
+          <div class="score muted">High Score: <span id="highScore">0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud">
+      <div class="muted">Mode: <span id="modeLabel">Timed</span></div>
+      <div style="display:flex;gap:8px;">
+        <button id="hintBtn" class="btn small">Reveal (-1 life)</button>
+        <button id="restartBtn" class="btn small">Restart</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start overlay (instructions) -->
+  <div id="overlay" class="overlay" style="display:none">
+    <div class="menu center" role="dialog" aria-modal="true">
+      <h2>How to play</h2>
+      <p>Find the single tile that is slightly different in shade. You have a timer and lives. Levels get harder (more tiles and subtler differences).</p>
+      <div class="row">
+        <button id="overlayPlay" class="btn">Start Game</button>
+        <button id="overlayPractice" class="btn">Practice Mode</button>
+        <label style="margin-left:auto" class="muted">Use arrow keys or tap tiles.</label>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const gridEl = document.getElementById('grid');
+  const levelEl = document.getElementById('level');
+  const scoreEl = document.getElementById('score');
+  const streakEl = document.getElementById('streak');
+  const livesEl = document.getElementById('lives');
+  const timerBar = document.getElementById('timerBar');
+  const highScoreEl = document.getElementById('highScore');
+  const overlay = document.getElementById('overlay');
+  const startBtn = document.getElementById('startBtn');
+  const overlayPlay = document.getElementById('overlayPlay');
+  const overlayPractice = document.getElementById('overlayPractice');
+  const restartBtn = document.getElementById('restartBtn');
+  const hintBtn = document.getElementById('hintBtn');
+  const cbToggle = document.getElementById('cbToggle');
+  let cbMode = false;
+
+  // Game state
+  let level = 1, score = 0, streak = 0, lives = 3, highScore = 0;
+  let gridSize = 2, oddIndex = 0, timeLimit = 10, timeLeft = 10, timerInterval = null;
+  let focusedIndex = 0;
+  let mode = 'timed'; // 'timed' | 'practice' (practice has no timer, maybe unlimited time)
+  let inRound = false;
+
+  // load high score
+  try { highScore = Number(localStorage.getItem('odd_high') || 0); } catch(e){ highScore = 0; }
+  highScoreEl.textContent = highScore;
+
+  function saveHighScore(){
+    if(score > highScore){ highScore = score; try{localStorage.setItem('odd_high', highScore);}catch(e){} }
+    highScoreEl.textContent = highScore;
+  }
+
+  function resetGame(){
+    level = 1; score = 0; streak = 0; lives = 3;
+    updateHUD();
+  }
+
+  function updateHUD(){
+    levelEl.textContent = level;
+    scoreEl.textContent = score;
+    streakEl.textContent = streak;
+    renderLives();
+  }
+
+  function renderLives(){
+    livesEl.innerHTML = '';
+    for(let i=0;i<3;i++){
+      const s = document.createElement('div');
+      s.className = 'heart' + (i >= lives ? ' empty' : '');
+      livesEl.appendChild(s);
+    }
+  }
+
+  // compute grid size by level (increase with level)
+  function computeGridSize(lv){
+    // mapping: 1->2, 2->3, 3->4, 4->5, 5->6, 7->7, 9->8
+    return Math.min(8, 2 + Math.floor((lv - 1) / 1)); // increases each level; tweak as desired
+  }
+
+  function computeDelta(lv){
+    // delta = lightness difference percentage; reduces as level increases
+    return Math.max(6, 26 - lv * 2); // floors to at least 6%
+  }
+
+  function computeTimeLimit(lv){
+    // time per round (timed mode): higher levels have slightly less time
+    return Math.max(4, 10 - Math.floor((lv - 1) / 3)); // min 4s
+  }
+
+  // Generate a random base HSL color
+  function randomBaseColor(){
+    const h = Math.floor(Math.random()*360);
+    const s = 62 + Math.floor(Math.random()*18); // 62-80
+    const l = 42 + Math.floor(Math.random()*16); // 42-58
+    return {h,s,l};
+  }
+
+  function hslToString(c){ return `hsl(${c.h} ${c.s}% ${c.l}%)`; }
+
+  function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
+
+  function startRound(){
+    inRound = true;
+    focusedIndex = 0;
+    gridEl.focus();
+    gridSize = computeGridSize(level);
+    timeLimit = computeTimeLimit(level);
+    timeLeft = timeLimit;
+    const delta = computeDelta(level);
+
+    // set grid template
+    gridEl.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+    gridEl.innerHTML = '';
+
+    const count = gridSize * gridSize;
+    const base = randomBaseColor();
+
+    // choose odd tile and whether it's lighter or darker
+    oddIndex = Math.floor(Math.random()*count);
+    const oddSign = Math.random() < 0.5 ? -1 : 1;
+
+    // build tiles
+    for(let i=0;i<count;i++){
+      const btn = document.createElement('button');
+      btn.className = 'tile';
+      btn.setAttribute('role','button');
+      btn.setAttribute('aria-label',`tile ${i+1} of ${count}`);
+      btn.dataset.index = i;
+      btn.dataset.odd = (i === oddIndex) ? '1' : '0';
+      // compute color
+      let tileColor;
+      if(i === oddIndex){
+        let oddL = clamp(base.l + oddSign*delta, 6, 92);
+        tileColor = {h: base.h, s: base.s, l: oddL};
+      } else {
+        tileColor = base;
+      }
+      btn.style.backgroundColor = hslToString(tileColor);
+
+      // pattern overlay (will be toggled with cbMode)
+      const pat = document.createElement('span');
+      pat.className = 'pattern';
+      btn.appendChild(pat);
+
+      // click handler
+      btn.addEventListener('click', onTileClick);
+
+      gridEl.appendChild(btn);
+    }
+
+    // if cbMode on, show pattern on odd tile
+    updateCB();
+
+    updateHUD();
+    startTimerIfNeeded();
+  }
+
+  function onTileClick(e){
+    if(!inRound) return;
+    const btn = (e.currentTarget);
+    const idx = Number(btn.dataset.index);
+    handleSelection(idx, btn);
+  }
+
+  function handleSelection(idx, btnEl){
+    const correct = idx === oddIndex;
+    if(correct){
+      onCorrect(btnEl);
+    } else {
+      onWrong(btnEl);
+    }
+  }
+
+  function onCorrect(btnEl){
+    inRound = false;
+    streak++;
+    const points = 100 + level * 10 + streak * 5;
+    score += points;
+    saveHighScore();
+    btnEl.classList.add('correct');
+    // short celebration
+    setTimeout(()=>{
+      btnEl.classList.remove('correct');
+      level++;
+      updateHUD();
+      nextRound();
+    }, 600);
+    stopTimer();
+  }
+
+  function onWrong(btnEl){
+    btnEl.classList.add('wrong');
+    streak = 0;
+    lives--;
+    if(lives <= 0){
+      // game over
+      lives = 0; updateHUD();
+      saveHighScore();
+      stopTimer();
+      gameOver();
+      return;
+    }
+    updateHUD();
+    setTimeout(()=>{ btnEl.classList.remove('wrong'); nextRound(); }, 520);
+    stopTimer();
+  }
+
+  function startTimerIfNeeded(){
+    stopTimer();
+    if(mode === 'timed'){
+      timerBar.style.width = '100%';
+      const start = Date.now();
+      timerInterval = setInterval(()=>{
+        const elapsed = (Date.now() - start)/1000;
+        timeLeft = Math.max(0, timeLimit - elapsed);
+        const pct = (timeLeft / timeLimit) * 100;
+        timerBar.style.width = pct + '%';
+        if(timeLeft <= 0){
+          stopTimer();
+          // treat as wrong (timeout)
+          handleTimeout();
+        }
+      }, 100);
+    } else {
+      timerBar.style.width = '100%';
+    }
+  }
+
+  function stopTimer(){
+    if(timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  function handleTimeout(){
+    inRound = false;
+    streak = 0;
+    lives--;
+    if(lives <= 0){
+      lives = 0; updateHUD(); saveHighScore(); gameOver();
+      return;
+    }
+    updateHUD();
+    // briefly flash the correct tile so player learns
+    const correctBtn = gridEl.querySelector('.tile[data-odd="1"]');
+    if(correctBtn){
+      correctBtn.classList.add('correct');
+      setTimeout(()=>{ correctBtn.classList.remove('correct'); nextRound(); }, 700);
+    } else {
+      nextRound();
+    }
+  }
+
+  function nextRound(){
+    // tiny delay then start next
+    setTimeout(()=>{ inRound = true; startRound(); }, 220);
+  }
+
+  function gameOver(){
+    inRound = false;
+    overlay.style.display = 'flex';
+    overlay.querySelector('.menu h2').textContent = 'Game Over';
+    overlay.querySelector('.menu p').textContent = `Score: ${score} · Reached level ${level}. High score: ${highScore}. Play again?`;
+  }
+
+  // hint: reveal odd tile but cost a life
+  hintBtn.addEventListener('click', ()=>{
+    if(!inRound) return;
+    if(lives <= 1) return alert('Not enough lives to use a hint.');
+    lives = Math.max(0, lives - 1);
+    updateHUD();
+    const correctBtn = gridEl.querySelector('.tile[data-odd="1"]');
+    if(correctBtn){
+      correctBtn.classList.add('correct');
+      setTimeout(()=>{ correctBtn.classList.remove('correct'); nextRound(); }, 700);
+    }
+    stopTimer();
+  });
+
+  // CB mode toggle
+  cbToggle.addEventListener('click', ()=>{
+    cbMode = !cbMode;
+    updateCB();
+    cbToggle.textContent = cbMode ? 'CB Mode ON' : 'CB Mode';
+  });
+
+  function updateCB(){
+    gridEl.querySelectorAll('.tile').forEach((t, i) => {
+      if(cbMode && t.dataset.odd === '1'){
+        t.classList.add('pattern-on');
+      } else {
+        t.classList.remove('pattern-on');
+      }
+    });
+  }
+
+  // keyboard navigation
+  gridEl.addEventListener('keydown', (e) => {
+    const tiles = Array.from(gridEl.querySelectorAll('.tile'));
+    if(tiles.length === 0) return;
+    const cols = gridSize;
+    if(e.key === 'ArrowRight'){ focusedIndex = (focusedIndex + 1) % tiles.length; e.preventDefault(); tiles[focusedIndex].focus(); }
+    if(e.key === 'ArrowLeft'){ focusedIndex = (focusedIndex - 1 + tiles.length) % tiles.length; e.preventDefault(); tiles[focusedIndex].focus(); }
+    if(e.key === 'ArrowDown'){ focusedIndex = (focusedIndex + cols) % tiles.length; e.preventDefault(); tiles[focusedIndex].focus(); }
+    if(e.key === 'ArrowUp'){ focusedIndex = (focusedIndex - cols + tiles.length) % tiles.length; e.preventDefault(); tiles[focusedIndex].focus(); }
+    if(e.key === 'Enter' || e.key === ' ') { tiles[focusedIndex].click(); e.preventDefault(); }
+  });
+
+  // start button
+  startBtn.addEventListener('click', ()=>{ overlay.style.display = 'flex'; overlay.querySelector('.menu h2').textContent = 'Ready?'; overlay.querySelector('.menu p').textContent = 'Choose a mode.'; });
+
+  overlayPlay.addEventListener('click', ()=>{
+    overlay.style.display = 'none';
+    mode = 'timed';
+    document.getElementById('modeLabel').textContent = 'Timed';
+    resetGame();
+    startRound();
+  });
+
+  overlayPractice.addEventListener('click', ()=>{
+    overlay.style.display = 'none';
+    mode = 'practice';
+    document.getElementById('modeLabel').textContent = 'Practice';
+    resetGame();
+    startRound();
+  });
+
+  restartBtn.addEventListener('click', ()=>{
+    overlay.style.display = 'flex';
+    overlay.querySelector('.menu h2').textContent = 'Restart?';
+    overlay.querySelector('.menu p').textContent = 'Would you like to restart the game?';
+    // change overlay buttons behavior temporarily:
+    overlayPlay.textContent = 'Yes, Restart';
+    overlayPractice.textContent = 'Cancel';
+    overlayPlay.onclick = () => {
+      overlay.style.display = 'none';
+      overlayPlay.textContent = 'Start Game';
+      overlayPractice.textContent = 'Practice Mode';
+      overlayPlay.onclick = null;
+      overlayPractice.onclick = null;
+      resetGame();
+      startRound();
+    };
+    overlayPractice.onclick = () => {
+      overlay.style.display = 'none';
+      overlayPlay.textContent = 'Start Game';
+      overlayPractice.textContent = 'Practice Mode';
+      overlayPlay.onclick = null;
+      overlayPractice.onclick = null;
+    };
+  });
+
+  // initial overlay open
+  overlay.style.display = 'flex';
+
+  // click outside overlay to close (only after gameover)
+  overlay.addEventListener('click', (e)=>{
+    if(e.target === overlay) overlay.style.display = 'none';
+  });
+
+  // allow closing overlay with Escape
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') overlay.style.display = 'none'; });
+
+  // small UX: click on grid to ensure keyboard focus
+  gridEl.addEventListener('click', ()=> gridEl.focus());
+
+  // initial HUD render
+  updateHUD();
+})();
+</script>
+</body>
+  </html>
 
