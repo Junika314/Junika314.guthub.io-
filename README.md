@@ -24,6 +24,7 @@
   <ul>
     <li>Personal Portfolio Website</li>
     <li>Community Work: Women empowerment programs & blood donation drives</li>
+ <li><a href="odd-one-out.html" target="_blank">Week 2 – Game On!</a></li> 
   </ul>
 </section>
 
