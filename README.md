@@ -1,4 +1,23 @@
 # Junika314.guthub.io-
+!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Junika Tamang Portfolio</title>
+
+  <!-- Add this style -->
+  <style>
+    a {
+      color: #1e90ff; /* bright blue */
+      text-decoration: underline; /* underline */
+    }
+
+    a:hover {
+      color: #ff6347; /* orange-red when hovering */
+    }
+  </style>
+</head>
+<body>
 <header>
   <h1>Junika Tamang</h1> <!-- Your Name -->
   <p>Student | Learner | Ambitious & Curious</p> <!-- Short description -->
