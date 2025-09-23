@@ -24,7 +24,11 @@
   <ul>
     <li>Personal Portfolio Website</li>
     <li>Community Work: Women empowerment programs & blood donation drives</li>
- <li><a href="odd-one-out.html" target="_blank">Week 2 – Game On!</a></li> 
+    
+    <!-- Game links -->
+    <li><a href="odd-one-out.html" target="_blank">Original Odd One Out (Week 2 Game)</a></li>
+    <li><a href="odd-one-out-improved.html" target="_blank">Improved Odd One Out</a></li>
+    <li><a href="https://docs.google.com/document/d/your-doc-id-here" target="_blank">AI Prompt & Suggestions</a></li>
   </ul>
 </section>
 
