@@ -1,0 +1,913 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CSV Analyzer — Single File (GitHub Pages)</title>
+
+<!-- External libs (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+  :root{
+    --bg:#0f1724;
+    --card:#0b1220;
+    --muted:#94a3b8;
+    --accent:#7c3aed;
+    --accent-2:#06b6d4;
+    --good:#16a34a;
+    --bad:#ef4444;
+    --glass: rgba(255,255,255,0.03);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#071025 0%, #07121a 60%);color:#e6eef8}
+  .container{max-width:1200px;margin:28px auto;padding:20px;}
+  header{display:flex;align-items:center;gap:16px;margin-bottom:18px;}
+  header h1{font-size:20px;margin:0}
+  .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 20px rgba(2,6,23,0.7);border:1px solid rgba(255,255,255,0.03)}
+  .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .file-input{display:flex;gap:8px;align-items:center}
+  input[type="file"]{display:inline-block}
+  label.small{font-size:12px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:1fr 420px;gap:16px;margin-top:14px}
+  .full{grid-column:1/-1}
+  .table-wrap{max-height:240px;overflow:auto;border-radius:8px;margin-top:10px;border:1px solid rgba(255,255,255,0.03)}
+  .anomaly-wrap{max-height:180px;overflow:auto;border-radius:8px;margin-top:10px;border:1px solid rgba(255,255,255,0.04)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:6px 8px;border-bottom:1px dashed rgba(255,255,255,0.02);text-align:left}
+  th{position:sticky;top:0;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);backdrop-filter: blur(2px);z-index:2;font-weight:600}
+  .numeric {text-align:right}
+  .stats{display:flex;flex-direction:column;gap:8px}
+  .stat-row{display:flex;justify-content:space-between;padding:6px 8px;border-radius:6px;background:var(--glass);font-size:13px}
+  .col-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.03);cursor:pointer;border:1px solid rgba(255,255,255,0.02);font-size:13px}
+  .chip.active{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:white;box-shadow:0 6px 20px rgba(12,10,30,0.6)}
+  .anomaly-sd{background:linear-gradient(90deg, rgba(124,58,237,0.12), rgba(6,182,212,0.06));padding:6px;border-radius:6px;font-size:13px}
+  /* stronger, more visible anomaly colors */
+  .row-anom-sd{background: rgba(124,58,237,0.20) !important; color: #fff;}
+  .row-anom-z{background: rgba(6,182,212,0.18) !important; color: #022; }
+  .row-anom-both{background: linear-gradient(90deg, rgba(124,58,237,0.16), rgba(6,182,212,0.16)) !important; color: #fff;}
+  /* make anomaly table badges stand out */
+  .anomaly-badge{display:inline-block;padding:4px 8px;border-radius:999px;font-weight:600;font-size:12px}
+  .anomaly-badge.sd{background:rgba(124,58,237,0.95);color:white}
+  .anomaly-badge.z{background:rgba(6,182,212,0.95);color:#002}
+  .anomaly-badge.both{background:linear-gradient(90deg,#7c3aed,#06b6d4);color:white}
+  .controls-row{display:flex;gap:8px;align-items:center}
+  .small-input{padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit;font-size:13px}
+  .btn{padding:8px 12px;border-radius:8px;background:var(--accent);border:none;color:white;cursor:pointer}
+  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+  .muted{color:var(--muted);font-size:13px}
+  footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
+  .chart-wrap{height:280px}
+  .filter-row{display:flex;gap:6px;align-items:center}
+  .select{padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
+  .pagination{display:flex;gap:6px;align-items:center}
+  .pill{padding:6px 8px;border-radius:6px;background:rgba(255,255,255,0.02);font-size:13px}
+  .help{font-size:13px;color:var(--muted);margin-top:6px}
+  pre{overflow:auto;padding:8px;background:rgba(255,255,255,0.02);border-radius:8px}
+  .export{display:flex;gap:8px}
+  @media (max-width:980px){ .grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div style="width:54px;height:54px;border-radius:10px;background:linear-gradient(180deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;font-weight:700">CSV</div>
+    <div>
+      <h1>CSV Analyzer — single-file (GitHub Pages)</h1>
+      <div class="muted">Upload a CSV, compute stats, find anomalies, filter, and visualize — runs fully in browser.</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="controls">
+      <div class="file-input">
+        <input id="fileInput" type="file" accept=".csv,text/csv" />
+        <div>
+          <div class="label small">Choose CSV file</div>
+          <div class="muted">CSV should have headers (if not, parser will auto-name columns).</div>
+        </div>
+      </div>
+
+      <div style="flex:1"></div>
+
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="label small">Rows per page</div>
+        <select id="rowsPerPage" class="small-input">
+          <option>50</option><option selected>100</option><option>250</option><option>500</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Left: data & stats -->
+      <div style="padding-right:8px">
+        <div class="card" style="margin-top:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <strong>Data Preview</strong>
+              <div class="muted">First rows of the parsed CSV — click a column header to sort</div>
+            </div>
+            <div class="export">
+              <button class="btn ghost" id="downloadAnoms">Download anomalies</button>
+              <button class="btn" id="clearBtn">Clear</button>
+            </div>
+          </div>
+
+          <div class="table-wrap" id="tableWrap" style="margin-top:8px">
+            <table id="dataTable" aria-live="polite">
+              <thead id="tableHead"></thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+
+          <!-- NEW: Anomalies separate view (visible as its own lines) -->
+          <div style="margin-top:10px">
+            <strong>Anomalies (separate view)</strong>
+            <div class="muted">Rows flagged by SD / z-score are listed here for quick scanning.</div>
+            <div class="anomaly-wrap" id="anomalyWrap">
+              <table id="anomalyTable">
+                <thead id="anomalyHead"></thead>
+                <tbody id="anomalyBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+            <div class="pagination">
+              <button class="btn ghost" id="prevPage">Prev</button>
+              <div class="pill" id="pageInfo">Page 0 / 0</div>
+              <button class="btn ghost" id="nextPage">Next</button>
+            </div>
+
+            <div class="muted">Total rows: <span id="totalRows">0</span></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <strong>Filters</strong>
+          <div class="help">Build simple column filters (supports =, !=, &lt;, &lt;=, &gt;, &gt;=, contains). Combine multiple filters using "Add filter".</div>
+
+          <div style="margin-top:10px" id="filtersArea"></div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <select id="filterCol" class="select"></select>
+            <select id="filterOp" class="select">
+              <option value="==">=</option>
+              <option value="!=">!=</option>
+              <option value=">">&gt;</option>
+              <option value=">=">&gt;=</option>
+              <option value="<">&lt;</option>
+              <option value="<=">&lt;=</option>
+              <option value="contains">contains</option>
+            </select>
+            <input id="filterVal" class="small-input" placeholder="value" />
+            <button class="btn" id="addFilter">Add filter</button>
+            <button class="btn ghost" id="clearFilters">Clear</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right: stats & charts -->
+      <div>
+        <div class="card">
+          <strong>Numeric Columns (click to select)</strong>
+          <div class="muted">Detected numeric columns will show summary stats and anomaly controls.</div>
+
+          <div id="numCols" class="col-list"></div>
+
+          <div style="margin-top:10px" id="colStatsArea"></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <strong>Anomaly Detection</strong>
+          <div class="help">Two approaches — (A) standard-deviation threshold per column, (B) z-score threshold. Rows that meet either/both are highlighted.</div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+            <label class="small">SD multiplier:</label>
+            <input id="sdMultiplier" class="small-input" value="2" />
+            <label class="small">Z-score threshold:</label>
+            <input id="zThresh" class="small-input" value="2.5" />
+            <button class="btn" id="applyAnom">Apply</button>
+          </div>
+
+          <div style="margin-top:8px">
+            <div class="anomaly-sd">Rows highlighted purple = flagged by SD. Cyan = flagged by z-score. Both = gradient. (Also available below in the separate anomalies view.)</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <strong>Visualization</strong>
+          <div class="muted">Pick columns and chart type. Hover over points for tooltips.</div>
+
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+            <select id="chartType" class="select">
+              <option value="hist">Histogram (single numeric)</option>
+              <option value="scatter">Scatter (two numerics)</option>
+              <option value="line">Line (single numeric, index or x-column)</option>
+            </select>
+            <select id="chartX" class="select"></select>
+            <select id="chartY" class="select"></select>
+            <button class="btn" id="drawChart">Draw</button>
+          </div>
+
+          <div class="chart-wrap" style="margin-top:8px">
+            <canvas id="chartCanvas"></canvas>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <strong>Quick tips & labels</strong>
+          <div class="help">Tooltips are enabled on charts. Click column chips to toggle selection. Use pagination if the file is large. This tool keeps all data locally in your browser.</div>
+        </div>
+      </div>
+
+      <!-- Full width: raw JSON / debug -->
+      <div class="full">
+        <div class="card">
+          <strong>Raw / Debug</strong>
+          <div class="muted">Preview parser details & summary (helpful for learning).</div>
+          <pre id="debugPre">No file loaded.</pre>
+        </div>
+      </div>
+
+    </div>
+
+    <footer>
+      <div>Built for GitHub Pages · Uses PapaParse and Chart.js · Runs in-browser</div>
+    </footer>
+  </div>
+</div>
+
+<script>
+/* CSV Analyzer — single-file
+ - Uses Papa Parse to read CSV
+ - Detects numeric columns, computes stats (count, mean, median, min, max, stddev)
+ - Flags anomalies using SD multiplier or z-score threshold
+ - Table preview with highlighting
+ - Column filters
+ - Charts via Chart.js
+ - Pagination support
+ - ADDED: separate Anomalies table with strong colors for visibility
+*/
+
+// Global state
+let rawRows = [];      // array of objects (rows)
+let headers = [];
+let numericCols = [];  // list of header names that are numeric
+let stats = {};        // stats per numeric column
+let currentPage = 1;
+let rowsPerPage = 100;
+let filters = [];      // array of filter objects {col, op, val}
+let sdMultiplier = 2;
+let zThreshold = 2.5;
+let anomalies = { sd: new Set(), z: new Set(), both: new Set() };
+let chartInstance = null;
+
+// Helper: determine if a value is numeric (allows numeric strings)
+function isNumericValue(v){
+  if(v === null || v === undefined) return false;
+  if(typeof v === 'number') return Number.isFinite(v);
+  if(typeof v !== 'string') return false;
+  if(v.trim()==='') return false;
+  // Try to parse as number, allow comma thousands and simple percent handling
+  let clean = v.replace(/,/g,'').replace(/%$/,'');
+  return !isNaN(Number(clean));
+}
+function toNumber(v){
+  if(v === null || v === undefined) return NaN;
+  if(typeof v === 'number') return v;
+  let clean = String(v).trim().replace(/,/g,'').replace(/%$/,'');
+  let n = Number(clean);
+  return isNaN(n) ? NaN : n;
+}
+
+// Stats helpers
+function computeStatsForColumn(values){ // values: array of numbers (NaN filtered)
+  const n = values.length;
+  if(n===0) return null;
+  const sorted = [...values].sort((a,b)=>a-b);
+  const sum = values.reduce((a,b)=>a+b,0);
+  const mean = sum/n;
+  const median = (n%2===1) ? sorted[(n-1)/2] : (sorted[n/2-1]+sorted[n/2])/2;
+  const min = sorted[0], max = sorted[sorted.length-1];
+  // population std dev or sample? use sample (n-1) if n>1
+  let variance = 0;
+  if(n>1){
+    variance = values.reduce((acc,x)=>acc + (x-mean)*(x-mean),0) / (n-1);
+  } else {
+    variance = 0;
+  }
+  const sd = Math.sqrt(variance);
+  return {count:n, mean, median, min, max, sd};
+}
+
+// Parse & load file
+document.getElementById('fileInput').addEventListener('change', (e)=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  Papa.parse(f, {
+    header: true,
+    dynamicTyping: false,
+    skipEmptyLines: true,
+    complete: function(results){
+      // results.data is array of objects
+      rawRows = results.data.map(row => {
+        // ensure keys are trimmed
+        const normalized = {};
+        for(const k in row){
+          let nk = k;
+          if(nk==='' || nk===null) nk = 'col';
+          nk = nk.trim();
+          normalized[nk] = row[k];
+        }
+        return normalized;
+      });
+      headers = results.meta.fields || (rawRows[0] ? Object.keys(rawRows[0]) : []);
+      if(!headers || headers.length===0){
+        // if headers missing, create col1..coln
+        if(rawRows.length>0){
+          headers = Object.keys(rawRows[0]);
+        } else {
+          headers = [];
+        }
+      }
+      if(headers.length===0 && rawRows.length>0){
+        // attempt to name columns from first row
+        headers = Object.keys(rawRows[0]);
+      }
+
+      // detect numeric columns: we treat a column numeric if at least 60% of non-empty values parse as a number
+      detectNumericColumns();
+
+      // compute stats
+      computeAllStats();
+
+      // reset filters & pagination & anomalies
+      currentPage = 1;
+      filters = [];
+      document.getElementById('filtersArea').innerHTML = '';
+      anomalies = { sd: new Set(), z: new Set(), both: new Set() };
+
+      // update UI elements
+      populateFilterColumnSelects();
+      renderColumnChips();
+      renderTable();
+      updateDebug();
+    },
+    error: function(err){
+      alert('Error parsing CSV: ' + err);
+    }
+  });
+});
+
+function detectNumericColumns(){
+  numericCols = [];
+  for(const h of headers){
+    let total = 0, numericCount = 0;
+    for(const r of rawRows){
+      const v = r[h];
+      if(v === null || v === undefined || String(v).trim()==='') continue;
+      total++;
+      if(isNumericValue(v)) numericCount++;
+    }
+    if(total === 0) continue;
+    if(numericCount/total >= 0.6){
+      numericCols.push(h);
+    }
+  }
+}
+
+// compute stats for all numeric columns
+function computeAllStats(){
+  stats = {};
+  for(const col of numericCols){
+    const vals = [];
+    for(const r of rawRows){
+      const v = r[col];
+      if(isNumericValue(v)){
+        vals.push(toNumber(v));
+      }
+    }
+    const s = computeStatsForColumn(vals);
+    stats[col] = s;
+  }
+}
+
+// UI: column chips
+function renderColumnChips(){
+  const container = document.getElementById('numCols');
+  container.innerHTML = '';
+  if(numericCols.length===0){
+    container.innerHTML = '<div class="muted">No numeric columns detected.</div>';
+    document.getElementById('colStatsArea').innerHTML = '';
+    return;
+  }
+  numericCols.forEach((col, idx)=>{
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = col;
+    chip.title = 'Click to show stats for ' + col;
+    chip.addEventListener('click', ()=> {
+      // toggle active
+      const alreadyActive = chip.classList.contains('active');
+      // remove active from others
+      document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+      if(!alreadyActive) chip.classList.add('active');
+      renderColStats(col);
+    });
+    container.appendChild(chip);
+  });
+  // auto-select the first numeric column
+  if(numericCols.length>0){
+    const first = document.querySelector('.chip');
+    if(first) { first.classList.add('active'); renderColStats(numericCols[0]); }
+  }
+}
+
+function renderColStats(col){
+  const area = document.getElementById('colStatsArea');
+  const s = stats[col];
+  if(!s){
+    area.innerHTML = '<div class="muted">No stats available for ' + col + '</div>';
+    return;
+  }
+  area.innerHTML = `
+    <div class="stats">
+      <div class="stat-row"><div>Column</div><div><strong>${col}</strong></div></div>
+      <div class="stat-row"><div>Count</div><div>${s.count}</div></div>
+      <div class="stat-row"><div>Mean</div><div>${s.mean.toLocaleString(undefined,{maximumFractionDigits:6})}</div></div>
+      <div class="stat-row"><div>Median</div><div>${s.median.toLocaleString(undefined,{maximumFractionDigits:6})}</div></div>
+      <div class="stat-row"><div>Min</div><div>${s.min.toLocaleString()}</div></div>
+      <div class="stat-row"><div>Max</div><div>${s.max.toLocaleString()}</div></div>
+      <div class="stat-row"><div>Std Dev (sample)</div><div>${s.sd.toLocaleString(undefined,{maximumFractionDigits:6})}</div></div>
+    </div>
+  `;
+
+  // also show a small histogram
+  const vals = rawRows.map(r => isNumericValue(r[col]) ? toNumber(r[col]) : null).filter(v => v!==null && !isNaN(v));
+  if(vals.length>0){
+    // draw temporary mini-chart using Chart.js if desired; here we just show a small textual histogram buckets
+    const min = s.min, max = s.max;
+    const buckets = 8;
+    const width = max - min || 1;
+    const counts = Array(buckets).fill(0);
+    for(const v of vals){
+      const idx = Math.min(buckets-1, Math.floor(((v-min)/width) * buckets));
+      counts[idx]++;
+    }
+    const bars = counts.map(c=> '▇'.repeat(Math.max(1, Math.round((c/Math.max(...counts))*8))) + ' ' + c).join('  ');
+    area.innerHTML += `<div class="help" style="margin-top:8px">Mini-histogram: <code>${bars}</code></div>`;
+  }
+}
+
+// Table rendering with sorting, highlighting and pagination
+let sortState = {col: null, dir: 1}; // dir: 1 asc, -1 desc
+function renderTable(){
+  if(headers.length===0){
+    document.getElementById('tableHead').innerHTML = '';
+    document.getElementById('tableBody').innerHTML = '<tr><td class="muted">No data</td></tr>';
+    // clear anomalies view as well
+    document.getElementById('anomalyHead').innerHTML = '';
+    document.getElementById('anomalyBody').innerHTML = '';
+    return;
+  }
+
+  // apply filters to rows
+  let filtered = applyFiltersToRows(rawRows);
+
+  // compute anomalies on filtered? We will compute anomalies based on full data (global stats),
+  // but marking rows in filtered set. Recompute anomalies set
+  computeAnomalies();
+
+  // apply sorting
+  if(sortState.col){
+    filtered.sort((a,b)=>{
+      const A = a[sortState.col], B = b[sortState.col];
+      const aNum = isNumericValue(A) ? toNumber(A) : null;
+      const bNum = isNumericValue(B) ? toNumber(B) : null;
+      if(aNum !== null && bNum !== null){
+        return sortState.dir * (aNum - bNum);
+      }
+      const aS = String(A||'').localeCompare(String(B||''));
+      return sortState.dir * aS;
+    });
+  }
+
+  const total = filtered.length;
+  document.getElementById('totalRows').textContent = total;
+
+  rowsPerPage = Number(document.getElementById('rowsPerPage').value) || 100;
+  const totalPages = Math.max(1, Math.ceil(total / rowsPerPage));
+  if(currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage-1) * rowsPerPage;
+  const pageRows = filtered.slice(start, start+rowsPerPage);
+
+  // header
+  const thead = document.getElementById('tableHead');
+  thead.innerHTML = '';
+  const trh = document.createElement('tr');
+  headers.forEach(h=>{
+    const th = document.createElement('th');
+    th.textContent = h;
+    th.title = 'Click to sort by ' + h;
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', ()=>{
+      if(sortState.col === h) sortState.dir *= -1;
+      else { sortState.col = h; sortState.dir = 1; }
+      renderTable();
+    });
+    trh.appendChild(th);
+  });
+  thead.appendChild(trh);
+
+  // body
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  for(let i=0;i<pageRows.length;i++){
+    const r = pageRows[i];
+    const tr = document.createElement('tr');
+    const rawIdx = rawRows.indexOf(r);
+    const isSD = anomalies.sd.has(rawIdx);
+    const isZ = anomalies.z.has(rawIdx);
+    if(isSD && isZ) tr.classList.add('row-anom-both');
+    else if(isSD) tr.classList.add('row-anom-sd');
+    else if(isZ) tr.classList.add('row-anom-z');
+
+    for(const h of headers){
+      const td = document.createElement('td');
+      const v = r[h];
+      if(numericCols.includes(h)){
+        td.classList.add('numeric');
+        td.textContent = (v===null || v===undefined || String(v).trim()==='') ? '' : String(v);
+      } else {
+        td.textContent = v===undefined ? '' : String(v);
+      }
+      td.title = 'Value: ' + td.textContent;
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+
+  updatePaginationInfo();
+
+  // update separate anomalies view
+  renderAnomaliesTable();
+}
+
+// NEW: render the separate anomalies table (one row per flagged raw row)
+function renderAnomaliesTable(){
+  const head = document.getElementById('anomalyHead');
+  const body = document.getElementById('anomalyBody');
+  head.innerHTML = '';
+  body.innerHTML = '';
+  // header: first column = #, second = Anomaly Type, then the rest of headers
+  const trh = document.createElement('tr');
+  const thIdx = document.createElement('th'); thIdx.textContent = '#'; trh.appendChild(thIdx);
+  const thType = document.createElement('th'); thType.textContent = 'Anomaly'; trh.appendChild(thType);
+  headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; trh.appendChild(th); });
+  head.appendChild(trh);
+
+  // collect flagged indices in sorted order
+  const flaggedSet = new Set([...anomalies.sd, ...anomalies.z]);
+  if(flaggedSet.size === 0){
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = headers.length + 2;
+    td.className = 'muted';
+    td.textContent = 'No anomalies detected.';
+    tr.appendChild(td);
+    body.appendChild(tr);
+    return;
+  }
+
+  const flagged = Array.from(flaggedSet).sort((a,b)=>a-b);
+  for(const idx of flagged){
+    const row = rawRows[idx];
+    const tr = document.createElement('tr');
+    // badge cell
+    const tdIdx = document.createElement('td'); tdIdx.textContent = idx; tdIdx.style.fontWeight = '600'; tr.appendChild(tdIdx);
+    const tdType = document.createElement('td');
+    const isSD = anomalies.sd.has(idx);
+    const isZ = anomalies.z.has(idx);
+    const span = document.createElement('span'); span.className = 'anomaly-badge';
+    if(isSD && isZ){ span.classList.add('both'); span.textContent = 'SD + Z'; tr.classList.add('row-anom-both'); }
+    else if(isSD){ span.classList.add('sd'); span.textContent = 'SD'; tr.classList.add('row-anom-sd'); }
+    else if(isZ){ span.classList.add('z'); span.textContent = 'Z-score'; tr.classList.add('row-anom-z'); }
+    tdType.appendChild(span); tr.appendChild(tdType);
+
+    // full row cells
+    for(const h of headers){
+      const td = document.createElement('td');
+      const v = row[h];
+      td.textContent = v===undefined ? '' : String(v);
+      if(numericCols.includes(h)) td.classList.add('numeric');
+      tr.appendChild(td);
+    }
+    body.appendChild(tr);
+  }
+}
+
+// Filter logic
+function populateFilterColumnSelects(){
+  const sel = document.getElementById('filterCol');
+  sel.innerHTML = '';
+  headers.forEach(h=>{
+    const opt = document.createElement('option');
+    opt.value = h;
+    opt.textContent = h;
+    sel.appendChild(opt);
+  });
+
+  const chartX = document.getElementById('chartX');
+  const chartY = document.getElementById('chartY');
+  chartX.innerHTML = ''; chartY.innerHTML = '';
+  headers.forEach(h=>{
+    const o1 = document.createElement('option'); o1.value = h; o1.textContent = h;
+    const o2 = document.createElement('option'); o2.value = h; o2.textContent = h;
+    chartX.appendChild(o1); chartY.appendChild(o2);
+  });
+}
+
+document.getElementById('addFilter').addEventListener('click', ()=>{
+  const col = document.getElementById('filterCol').value;
+  const op = document.getElementById('filterOp').value;
+  const val = document.getElementById('filterVal').value;
+  if(!col){ alert('Choose a column'); return; }
+  if(val === ''){ alert('Enter a value for filter'); return; }
+  filters.push({col, op, val});
+  renderFiltersUI();
+  renderTable();
+});
+
+document.getElementById('clearFilters').addEventListener('click', ()=>{
+  filters = [];
+  renderFiltersUI();
+  renderTable();
+});
+
+function renderFiltersUI(){
+  const area = document.getElementById('filtersArea');
+  area.innerHTML = '';
+  filters.forEach((f, idx)=>{
+    const div = document.createElement('div');
+    div.className = 'pill';
+    div.innerHTML = `<strong>${f.col}</strong> ${f.op} "${f.val}" <button data-idx="${idx}" style="margin-left:8px" class="btn ghost">x</button>`;
+    div.querySelector('button').addEventListener('click', (e)=>{
+      const i = Number(e.target.dataset.idx);
+      filters.splice(i,1);
+      renderFiltersUI();
+      renderTable();
+    });
+    area.appendChild(div);
+  });
+}
+
+function applyFiltersToRows(rows){
+  if(!filters || filters.length===0) return [...rows];
+  return rows.filter(r=>{
+    for(const f of filters){
+      const val = r[f.col];
+      const op = f.op;
+      const fv = f.val;
+      if(op === 'contains'){
+        if(!String(val || '').toLowerCase().includes(String(fv).toLowerCase())) return false;
+      } else {
+        // Try numeric comparison if both numeric-like
+        if(isNumericValue(val) && isNumericValue(fv)){
+          const a = toNumber(val), b = toNumber(fv);
+          switch(op){
+            case '==': if(!(a==b)) return false; break;
+            case '!=': if(!(a!=b)) return false; break;
+            case '>': if(!(a>b)) return false; break;
+            case '>=': if(!(a>=b)) return false; break;
+            case '<': if(!(a<b)) return false; break;
+            case '<=': if(!(a<=b)) return false; break;
+            default: return false;
+          }
+        } else {
+          // string compare
+          switch(op){
+            case '==': if(!(String(val) === fv)) return false; break;
+            case '!=': if(!(String(val) !== fv)) return false; break;
+            case '>': if(!(String(val) > fv)) return false; break;
+            case '>=': if(!(String(val) >= fv)) return false; break;
+            case '<': if(!(String(val) < fv)) return false; break;
+            case '<=': if(!(String(val) <= fv)) return false; break;
+            default: return false;
+          }
+        }
+      }
+    }
+    return true;
+  });
+}
+
+// Pagination controls
+document.getElementById('prevPage').addEventListener('click', ()=>{
+  if(currentPage>1) { currentPage--; renderTable(); }
+});
+document.getElementById('nextPage').addEventListener('click', ()=>{
+  const total = applyFiltersToRows(rawRows).length;
+  const totalPages = Math.max(1, Math.ceil(total / rowsPerPage));
+  if(currentPage < totalPages) { currentPage++; renderTable(); }
+});
+document.getElementById('rowsPerPage').addEventListener('change', ()=>{
+  currentPage = 1;
+  renderTable();
+});
+
+function updatePaginationInfo(){
+  const total = applyFiltersToRows(rawRows).length;
+  rowsPerPage = Number(document.getElementById('rowsPerPage').value) || 100;
+  const totalPages = Math.max(1, Math.ceil(total / rowsPerPage));
+  document.getElementById('pageInfo').textContent = `Page ${currentPage} / ${totalPages}`;
+}
+
+// Anomaly detection: mark rows in rawRows by index
+function computeAnomalies(){
+  anomalies = { sd: new Set(), z: new Set(), both: new Set() };
+  sdMultiplier = Number(document.getElementById('sdMultiplier').value) || 2;
+  zThreshold = Number(document.getElementById('zThresh').value) || 2.5;
+
+  // for each numeric col, compute z-scores and SD thresholds
+  for(const col of numericCols){
+    const s = stats[col];
+    if(!s) continue;
+    const mean = s.mean;
+    const sd = s.sd || 0.000000001;
+    for(let i=0;i<rawRows.length;i++){
+      const row = rawRows[i];
+      const v = row[col];
+      if(!isNumericValue(v)) continue;
+      const num = toNumber(v);
+      const z = sd===0 ? 0 : (num - mean) / sd;
+      const isSD = Math.abs(num - mean) > sdMultiplier * sd;
+      const isZ = Math.abs(z) > zThreshold;
+      if(isSD && isZ) { anomalies.both.add(i); anomalies.sd.add(i); anomalies.z.add(i); }
+      else if(isSD) anomalies.sd.add(i);
+      else if(isZ) anomalies.z.add(i);
+    }
+  }
+}
+
+// Apply anomaly button
+document.getElementById('applyAnom').addEventListener('click', ()=>{
+  computeAllStats(); // recompute stats in case something changed
+  computeAnomalies();
+  renderTable();
+  updateDebug();
+});
+
+// Download anomalies CSV
+document.getElementById('downloadAnoms').addEventListener('click', ()=>{
+  // Gather indices that are flagged by either set
+  const flaggedIdx = new Set([...anomalies.sd, ...anomalies.z]);
+  if(flaggedIdx.size === 0){ alert('No anomalies detected'); return; }
+  const rows = [];
+  // Add header row
+  rows.push(headers.join(','));
+  for(const i of flaggedIdx){
+    const r = rawRows[i];
+    const line = headers.map(h => {
+      let v = r[h];
+      if(v === undefined || v === null) return '';
+      // escape if necessary
+      let s = String(v);
+      if(s.includes(',') || s.includes('"') || s.includes('\n')) s = '"' + s.replace(/"/g,'""') + '"';
+      return s;
+    }).join(',');
+    rows.push(line);
+  }
+  const csv = rows.join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'anomalies.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+// Clear button
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  rawRows = []; headers = []; numericCols = []; stats = {}; filters = []; anomalies = { sd: new Set(), z: new Set(), both: new Set() };
+  document.getElementById('fileInput').value = '';
+  document.getElementById('tableHead').innerHTML = '';
+  document.getElementById('tableBody').innerHTML = '';
+  document.getElementById('anomalyHead').innerHTML = '';
+  document.getElementById('anomalyBody').innerHTML = '';
+  document.getElementById('numCols').innerHTML = '';
+  document.getElementById('colStatsArea').innerHTML = '';
+  document.getElementById('filterCol').innerHTML = '';
+  document.getElementById('chartX').innerHTML = '';
+  document.getElementById('chartY').innerHTML = '';
+  document.getElementById('debugPre').textContent = 'No file loaded.';
+  document.getElementById('totalRows').textContent = '0';
+});
+
+// Charting
+document.getElementById('drawChart').addEventListener('click', ()=>{
+  drawSelectedChart();
+});
+
+function drawSelectedChart(){
+  const type = document.getElementById('chartType').value;
+  const xcol = document.getElementById('chartX').value;
+  const ycol = document.getElementById('chartY').value;
+
+  if(!xcol){ alert('Select X column'); return; }
+  if(type==='scatter' && !ycol){ alert('Select Y column for scatter'); return; }
+
+  // Prepare data
+  if(type === 'hist'){
+    if(!numericCols.includes(xcol)){ alert('Select a numeric column for histogram'); return; }
+    const vals = rawRows.map(r => isNumericValue(r[xcol]) ? toNumber(r[xcol]) : null).filter(v=>v!==null);
+    if(vals.length===0){ alert('No numeric data for this column'); return; }
+    // Build histogram bins
+    const bins = 20;
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const width = (max - min) / bins || 1;
+    const counts = Array(bins).fill(0);
+    for(const v of vals){
+      let idx = Math.floor((v - min) / width);
+      if(idx < 0) idx = 0;
+      if(idx >= bins) idx = bins-1;
+      counts[idx]++;
+    }
+    const labels = Array.from({length:bins}, (_,i)=> (min + i*width).toFixed(2) + ' - ' + (min + (i+1)*width).toFixed(2));
+    renderChart({type:'bar', data:{labels, datasets:[{label: xcol, data: counts}]}, options:{responsive:true, plugins:{tooltip:{enabled:true}}}});
+  } else if(type === 'scatter'){
+    if(!numericCols.includes(xcol) || !numericCols.includes(ycol)){ alert('X and Y must be numeric'); return; }
+    const pts = [];
+    for(const r of rawRows){
+      if(isNumericValue(r[xcol]) && isNumericValue(r[ycol])){
+        pts.push({x: toNumber(r[xcol]), y: toNumber(r[ycol])});
+      }
+    }
+    if(pts.length===0){ alert('No valid numeric pairs to plot'); return; }
+    renderChart({type:'scatter', data:{datasets:[{label: `${ycol} vs ${xcol}`, data: pts}]}, options:{scales:{x:{title:{display:true,text:xcol}}, y:{title:{display:true,text:ycol}}}, plugins:{tooltip:{enabled:true}}}});
+  } else if(type === 'line'){
+    // decide x axis: if xcol numeric use its values as x; else use row index
+    const labels = [];
+    const dataPts = [];
+    if(numericCols.includes(xcol)){
+      // treat xcol as y series across row order
+      rawRows.forEach((r, idx)=>{
+        if(isNumericValue(r[xcol])){ labels.push(String(idx)); dataPts.push(toNumber(r[xcol])); }
+      });
+      renderChart({type:'line', data:{labels, datasets:[{label:xcol, data: dataPts, fill:false}]}, options:{plugins:{tooltip:{enabled:true}}}});
+    } else {
+      // xcol non-numeric: try ycol numeric
+      if(!ycol || !numericCols.includes(ycol)){ alert('For line select a numeric Y column'); return; }
+      rawRows.forEach((r, idx)=>{
+        const x = r[xcol]===undefined ? '' : String(r[xcol]);
+        labels.push(x);
+        dataPts.push(isNumericValue(r[ycol]) ? toNumber(r[ycol]) : null);
+      });
+      renderChart({type:'line', data:{labels, datasets:[{label:ycol, data: dataPts, fill:false}]}, options:{plugins:{tooltip:{enabled:true}}, parsing: {yAxisKey: ''}}});
+    }
+  }
+}
+
+function renderChart(cfg){
+  const canvas = document.getElementById('chartCanvas');
+  if(chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(canvas, {
+    type: cfg.type || 'bar',
+    data: cfg.data,
+    options: cfg.options || {}
+  });
+}
+
+// Debug / raw information
+function updateDebug(){
+  const d = {
+    headers,
+    totalRows: rawRows.length,
+    numericCols,
+    statsPreview: numericCols.reduce((acc,c)=>{ acc[c]=stats[c]; return acc; }, {}),
+    sdMultiplier: document.getElementById('sdMultiplier') ? document.getElementById('sdMultiplier').value : null,
+    zThreshold: document.getElementById('zThresh') ? document.getElementById('zThresh').value : null,
+    anomaliesCounts: {
+      sd: anomalies.sd ? anomalies.sd.size : 0,
+      z: anomalies.z ? anomalies.z.size : 0,
+      both: anomalies.both ? anomalies.both.size : 0
+    }
+  };
+  document.getElementById('debugPre').textContent = JSON.stringify(d, null, 2);
+}
+
+// initial UI hookups
+document.getElementById('sdMultiplier').addEventListener('change', ()=>{ /* no-op */ });
+document.getElementById('zThresh').addEventListener('change', ()=>{ /* no-op */ });
+
+// initial states
+updateDebug();
+
+</script>
+</body>
+</html>
